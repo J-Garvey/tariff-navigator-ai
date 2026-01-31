@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Upload, File, X, FileText, AlertCircle } from "lucide-react";
+import { useState, useCallback, forwardRef } from "react";
+import { Upload, X, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -9,7 +9,8 @@ interface FileUploaderProps {
   description?: string;
 }
 
-export function FileUploader({ onFileSelect, selectedFile, description }: FileUploaderProps) {
+export const FileUploader = forwardRef<HTMLDivElement, FileUploaderProps>(
+  ({ onFileSelect, selectedFile, description }, ref) => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,9 +99,8 @@ export function FileUploader({ onFileSelect, selectedFile, description }: FileUp
       </div>
     );
   }
-
   return (
-    <div className="space-y-2">
+    <div ref={ref} className="space-y-2">
       <div
         onDragEnter={handleDragIn}
         onDragLeave={handleDragOut}
@@ -148,4 +148,6 @@ export function FileUploader({ onFileSelect, selectedFile, description }: FileUp
       )}
     </div>
   );
-}
+});
+
+FileUploader.displayName = "FileUploader";

@@ -8,7 +8,8 @@ import { toast } from "sonner";
 interface ClassificationResult {
   hsCode: string;
   memo: string;
-  confidence?: string;
+  confidence?: number;
+  sixDigitAccuracy?: string;
 }
 
 interface ResultCardProps {
@@ -87,7 +88,7 @@ Disclaimer: AI assistance only. Always verify with Revenue/Customs expert. Not o
 
           <CardContent className="p-6 md:p-8 space-y-8">
             {/* HS Code Display */}
-            <div className="text-center py-6 px-4 rounded-xl bg-accent/50 border border-primary/10">
+            <div className="text-center py-6 px-4 rounded-xl bg-primary/5 border border-primary/20">
               <p className="text-sm font-medium text-muted-foreground mb-2">
                 HS/TARIC Code
               </p>
@@ -109,6 +110,22 @@ Disclaimer: AI assistance only. Always verify with Revenue/Customs expert. Not o
                   )}
                 </Button>
               </div>
+              
+              {/* Confidence Metrics */}
+              {(result.confidence !== undefined || result.sixDigitAccuracy) && (
+                <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-4 border-t border-border/50">
+                  {result.confidence !== undefined && (
+                    <Badge variant="outline" className="text-xs">
+                      Confidence: {Math.round(result.confidence * 100)}%
+                    </Badge>
+                  )}
+                  {result.sixDigitAccuracy && (
+                    <Badge variant="outline" className="text-xs">
+                      6-Digit: {result.sixDigitAccuracy}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Legal Defense Memo */}
@@ -120,11 +137,9 @@ Disclaimer: AI assistance only. Always verify with Revenue/Customs expert. Not o
                 </h3>
               </div>
               
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                <div className="p-5 rounded-xl bg-muted/30 border border-border/50 text-foreground space-y-4 text-sm leading-relaxed whitespace-pre-wrap">
+              <div className="p-5 rounded-xl bg-muted/30 border border-border/50 text-foreground space-y-4 text-sm leading-relaxed whitespace-pre-wrap prose prose-sm max-w-none prose-headings:text-secondary prose-strong:text-secondary">
                   {result.memo}
                 </div>
-              </div>
 
               {/* Glass Box Badge */}
               <div className="flex items-center justify-center">
