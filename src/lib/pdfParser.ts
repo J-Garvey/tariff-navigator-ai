@@ -1,10 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Import worker as a URL - Vite will handle bundling it
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-
-// Configure worker to use the local bundled worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// Disable worker - run PDF.js in main thread (simpler, works everywhere)
+pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
 export interface ExtractedPharmaData {
   rawText: string;
@@ -40,6 +37,8 @@ export async function extractTextFromPDF(file: File): Promise<string> {
       isEvalSupported: false,
       useSystemFonts: true,
       verbosity: 0, // Reduce console spam
+      disableAutoFetch: true,
+      disableStream: true,
     });
     
     const pdf = await loadingTask.promise;
