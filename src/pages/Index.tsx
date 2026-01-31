@@ -5,14 +5,15 @@ import { ProcessingOverlay } from "@/components/ProcessingOverlay";
 import { ResultCard } from "@/components/ResultCard";
 import { Footer } from "@/components/Footer";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { classifyProduct, ClassificationResponse } from "@/lib/api";
 import { ExtractedPharmaData } from "@/lib/pdfParser";
 
 interface ClassificationResult {
   hsCode: string;
   memo: string;
   confidence?: number;
-  sixDigitAccuracy?: string;
+  partialAccuracy?: string;
+  sixDigitMatch?: string;
 }
 
 export default function Index() {
@@ -25,34 +26,33 @@ export default function Index() {
   };
 
   const handleClassify = async (input: { text: string; extractedData?: ExtractedPharmaData }) => {
+    if (!input.text.trim() && !input.extractedData?.rawText) {
+      toast.error("Please provide product details to classify");
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('classify-product', {
-        body: {
-          productDescription: input.text,
-          extractedData: input.extractedData,
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      const response: ClassificationResponse = await classifyProduct(
+        input.text,
+        input.extractedData
+      );
 
       setResult({
-        hsCode: data.hsCode,
-        memo: data.memo,
-        confidence: data.confidence,
-        sixDigitAccuracy: data.sixDigitAccuracy,
+        hsCode: response.hs_code,
+        memo: response.memo,
+        confidence: response.confidence,
+        partialAccuracy: response.partial_accuracy,
+        sixDigitMatch: response.six_digit_match,
       });
+      
       toast.success("Classification complete!");
     } catch (error) {
-      console.error('Classification error:', error);
-      const message = error instanceof Error ? error.message : "Classification failed. Please try again.";
+      console.error("Classification error:", error);
+      const message = error instanceof Error 
+        ? error.message 
+        : "Backend connection failed – check with LLM team";
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -61,7 +61,7 @@ export default function Index() {
 
   const handleReset = () => {
     setResult(null);
-    scrollToInput();
+    setTimeout(() => scrollToInput(), 100);
   };
 
   return (
