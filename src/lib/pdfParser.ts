@@ -1,5 +1,8 @@
 // Use legacy build that doesn't require web workers
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
+
+// Set worker source to the public folder (copied there during build)
+GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 export interface ExtractedPharmaData {
   rawText: string;
@@ -16,7 +19,7 @@ export interface ExtractedPharmaData {
 
 // Patterns for extracting pharma-specific data
 const CAS_PATTERN = /\b\d{2,7}-\d{2}-\d\b/g;
-const HAZARD_KEYWORDS = ['hazard', 'warning', 'danger', 'caution', 'toxic', 'flammable', 'corrosive', 'irritant', 'carcinogen', 'mutagen', 'h\d{3}', 'p\d{3}'];
+const HAZARD_KEYWORDS = ['hazard', 'warning', 'danger', 'caution', 'toxic', 'flammable', 'corrosive', 'irritant', 'carcinogen', 'mutagen', 'h\\d{3}', 'p\\d{3}'];
 const ACTIVE_KEYWORDS = ['active ingredient', 'active substance', 'api', 'drug substance', 'therapeutic agent'];
 const FORMULATION_KEYWORDS = ['formulation', 'excipient', 'buffer', 'stabilizer', 'preservative', 'diluent', 'solvent'];
 const PACKAGING_KEYWORDS = ['vial', 'syringe', 'ampoule', 'bottle', 'container', 'closure', 'stopper', 'glass', 'plastic', 'rubber'];
@@ -29,7 +32,7 @@ export async function extractTextFromPDF(file: File): Promise<string> {
     const arrayBuffer = await file.arrayBuffer();
     console.log('ArrayBuffer loaded, size:', arrayBuffer.byteLength);
     
-    const loadingTask = pdfjsLib.getDocument({ 
+    const loadingTask = getDocument({ 
       data: arrayBuffer,
       useWorkerFetch: false,
       isEvalSupported: false,
@@ -72,13 +75,14 @@ export async function extractTextFromPDF(file: File): Promise<string> {
     
     // Provide more specific error messages
     if (error instanceof Error) {
-      if (error.message.includes('Worker')) {
-        throw new Error('PDF worker failed to load. Check your internet connection and try again.');
-      }
       if (error.message.includes('Invalid PDF')) {
         throw new Error('Invalid or corrupted PDF file. Please try a different file.');
       }
-      throw error;
+      if (error.message.includes('password')) {
+        throw new Error('PDF is password protected. Please remove the password and try again.');
+      }
+      // Pass through the actual error message
+      throw new Error(`PDF extraction failed: ${error.message}`);
     }
     
     throw new Error('Failed to extract text from PDF. The file may be corrupted or contain only images.');
