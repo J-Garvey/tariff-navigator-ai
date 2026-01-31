@@ -1,7 +1,17 @@
 import { ExtractedPharmaData } from "./pdfParser";
 
-// Use Supabase Edge Function for classification (implements toby/buildPrompt.py logic)
-const API_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-product`;
+// Backend options:
+// 1. Supabase Edge Function (default): VITE_SUPABASE_URL/functions/v1/classify-product
+// 2. Python FastAPI (toby/): http://localhost:8000/classify
+// Set VITE_USE_PYTHON_BACKEND=true to use Python backend
+
+const USE_PYTHON_BACKEND = import.meta.env.VITE_USE_PYTHON_BACKEND === "true";
+const PYTHON_API_ENDPOINT = import.meta.env.VITE_PYTHON_API_URL || "http://localhost:8000";
+const SUPABASE_API_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-product`;
+
+const API_ENDPOINT = USE_PYTHON_BACKEND 
+  ? `${PYTHON_API_ENDPOINT}/classify` 
+  : SUPABASE_API_ENDPOINT;
 
 export interface ClassificationRequest {
   extracted_text: string;
@@ -23,6 +33,8 @@ export interface ClassificationResponse {
   partial_accuracy: string;
   confidence?: number;
   six_digit_match?: string;
+  validation_warning?: string;
+  is_demo_mode?: boolean;
 }
 
 export async function classifyProduct(
@@ -45,10 +57,15 @@ export async function classifyProduct(
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    // Only add Supabase auth header when using Supabase backend
+    ...(USE_PYTHON_BACKEND ? {} : {
+      "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    }),
   };
 
   try {
+    console.log(`Using ${USE_PYTHON_BACKEND ? "Python" : "Supabase"} backend: ${API_ENDPOINT}`);
+    
     const response = await fetch(API_ENDPOINT, {
       method: "POST",
       headers,
@@ -72,8 +89,24 @@ export async function classifyProduct(
     return data;
   } catch (error) {
     if (error instanceof TypeError && error.message.includes("fetch")) {
-      // Network error or CORS issue - use mock data for demo
-      console.warn("API not reachable, using demo response");
+      // Network error or CORS issue - try Python backend as fallback, then demo
+      if (!USE_PYTHON_BACKEND) {
+        console.warn("Supabase API not reachable, trying Python backend...");
+        try {
+          const pythonResponse = await fetch(`${PYTHON_API_ENDPOINT}/classify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+          });
+          if (pythonResponse.ok) {
+            const data = await pythonResponse.json();
+            return { ...data, memo: data.memo || data.legal_memo };
+          }
+        } catch {
+          console.warn("Python backend also not reachable");
+        }
+      }
+      console.warn("All backends unreachable, using demo response. This is NOT a real classification.");
       return getMockResponse(text, extractedData);
     }
     throw error;
@@ -81,72 +114,133 @@ export async function classifyProduct(
 }
 
 // Mock response for demo/development when backend isn't available
+// CLEARLY MARKED AS DEMO DATA - NOT REAL CLASSIFICATIONS
 function getMockResponse(
   text: string,
   extractedData?: ExtractedPharmaData
 ): ClassificationResponse {
-  const hasPembrolizumab = text.toLowerCase().includes("pembrolizumab");
-  const hasMonoclonal = text.toLowerCase().includes("monoclonal");
-  const hasVaccine = text.toLowerCase().includes("vaccine");
+  const lowerText = text.toLowerCase();
+  const hasPembrolizumab = lowerText.includes("pembrolizumab");
+  const hasMonoclonal = lowerText.includes("monoclonal");
+  const hasAntibody = lowerText.includes("antibody");
+  const hasVaccine = lowerText.includes("vaccine");
+  const hasInsulin = lowerText.includes("insulin");
+  const hasAntibiotic = lowerText.includes("antibiotic") || lowerText.includes("penicillin") || lowerText.includes("amoxicillin");
 
   let hsCode = "3004.90.00.00";
-  let memo = "**Classification Analysis**\n\nBased on the provided product description...";
+  let confidence = 0.6;
+  let memo = "";
+  let productType = "General pharmaceutical";
 
-  if (hasPembrolizumab || hasMonoclonal) {
+  if (hasPembrolizumab || (hasMonoclonal && hasAntibody)) {
     hsCode = "3002.15.00.00";
-    memo = `**Classification Analysis for Immunological Product**
+    confidence = 0.85;
+    productType = "Monoclonal antibody (immunological product)";
+    memo = `**⚠️ DEMO MODE - This is a simulated classification**
 
-**1. Product Identification**
-The product is identified as a monoclonal antibody preparation${extractedData?.casNumbers?.length ? ` with CAS Number(s): ${extractedData.casNumbers.join(", ")}` : ""}.
+**Classification Analysis for Immunological Product**
 
-**2. Applicable Classification Rules**
+**Product Type:** ${productType}
 
-**GIR 1 (General Interpretive Rule 1):**
-Classification determined according to the terms of headings and Section/Chapter Notes.
+**Active Ingredient:** ${hasPembrolizumab ? "Pembrolizumab" : "Monoclonal antibody"}${extractedData?.casNumbers?.length ? ` (CAS: ${extractedData.casNumbers.join(", ")})` : ""}
 
-**Chapter 30 Note 2:**
-Heading 3002 applies to immunological products, including monoclonal antibodies for therapeutic/prophylactic use.
+**Applicable GIR Rules:** 
+- GIR 1: Classification by terms of heading 3002
+- GIR 3(b): Essential character given by active pharmaceutical ingredient
+- GIR 5: Packaging (vials, syringes) does not affect classification
 
-**GIR 3(b) – Essential Character:**
-The active pharmaceutical ingredient (monoclonal antibody) imparts essential character. Packaging materials (glass vials, rubber stoppers) do not affect classification per GIR 5.
+**Chapter Notes Applied:**
+- Chapter 30 Note 2: Heading 3002 covers immunological products including monoclonal antibodies
+- Subheading 3002.15: Immunological products put up in measured doses or retail
 
-**3. Heading Selection**
+**Exclusions Verified:**
+- Not a food supplement (Chapter 21 exclusion verified)
+- Not a blood albumin for non-therapeutic use
 
-**Heading 3002:** Blood and immunological products
-- **3002.15:** Immunological products, put up in measured doses or in forms or packings for retail sale
+**Confidence Reasoning:** High confidence - Monoclonal antibodies have well-established classification under 3002.15
 
-**4. Classification Justification**
+---
 
-This product is properly classified under **HS 3002.15.00.00** because:
-• It is a monoclonal antibody (immunological product) per Chapter 30 Note 2
-• It is put up in measured doses (injectable formulation)
-• Glass packaging does not change classification under GIR 3(b) and GIR 5
-• Consistent with EU BTI rulings for similar products
+**Legal Justification Memo:**
 
-**5. Supporting References**
-- EU Combined Nomenclature Explanatory Notes, Chapter 30
-- WCO HS Classification Opinion 3002.15
-- Irish Revenue Classification Guidelines`;
+This product is classified under HS 3002.15.00.00 based on:
+1. The product is a monoclonal antibody, which is an immunological product per Chapter 30 Note 2
+2. It is put up in measured doses for therapeutic use
+3. GIR 3(b) confirms the active ingredient (monoclonal antibody) provides essential character
+4. Packaging materials do not affect classification per GIR 5
+
+**Note: This is DEMO data. Connect to the backend API for real classifications.**`;
   } else if (hasVaccine) {
     hsCode = "3002.41.00.00";
-    memo = `**Classification Analysis for Vaccine Product**
+    confidence = 0.82;
+    productType = "Vaccine for human medicine";
+    memo = `**⚠️ DEMO MODE - This is a simulated classification**
 
-**1. Product Identification**
-Vaccine preparation for human medicine.
+**Classification Analysis for Vaccine**
 
-**2. Classification Rules Applied**
-- GIR 1: Terms of heading 3002
-- Chapter 30 Note 2: Vaccines for human medicine
+**Product Type:** ${productType}
 
-**3. Classification: HS 3002.41.00.00**
-Vaccines for human medicine, classified under heading 3002.41.`;
+**Applicable GIR Rules:** GIR 1, Chapter 30 Note 2
+
+**Chapter Notes Applied:** 3002.41 - Vaccines for human medicine
+
+**Confidence Reasoning:** High confidence - Vaccines have clear classification under 3002.41
+
+**Note: This is DEMO data. Connect to the backend API for real classifications.**`;
+  } else if (hasInsulin) {
+    hsCode = "3004.31.00.00";
+    confidence = 0.88;
+    productType = "Insulin preparation";
+    memo = `**⚠️ DEMO MODE - This is a simulated classification**
+
+**Classification Analysis for Insulin**
+
+**Product Type:** ${productType}
+
+**Applicable GIR Rules:** GIR 1, heading 3004.31
+
+**Confidence Reasoning:** High confidence - Insulin preparations clearly fall under 3004.31
+
+**Note: This is DEMO data. Connect to the backend API for real classifications.**`;
+  } else if (hasAntibiotic) {
+    hsCode = "3004.20.00.00";
+    confidence = 0.80;
+    productType = "Antibiotic preparation";
+    memo = `**⚠️ DEMO MODE - This is a simulated classification**
+
+**Classification Analysis for Antibiotic**
+
+**Product Type:** ${productType}
+
+**Applicable GIR Rules:** GIR 1, heading 3004.20
+
+**Confidence Reasoning:** Medium-high confidence - Antibiotics in retail form under 3004.20
+
+**Note: This is DEMO data. Connect to the backend API for real classifications.**`;
+  } else {
+    memo = `**⚠️ DEMO MODE - This is a simulated classification**
+
+**Classification Analysis**
+
+**Product Type:** General pharmaceutical product (insufficient detail to classify more specifically)
+
+**Confidence Reasoning:** Low confidence - Limited product information provided. Default classification to 3004.90.00.00 (other medicaments).
+
+**Recommendation:** Provide more detailed product information including:
+- Active ingredient(s) and their function
+- Whether the product is for therapeutic/prophylactic use
+- Dosage form and packaging
+- Intended medical use
+
+**Note: This is DEMO data. Connect to the backend API for real classifications.**`;
   }
 
   return {
     hs_code: hsCode,
     memo,
-    partial_accuracy: "6-digit match: 92.3%",
-    confidence: 0.92,
-    six_digit_match: "High confidence",
+    partial_accuracy: `6-digit match: ${(confidence * 100).toFixed(1)}%`,
+    confidence,
+    six_digit_match: confidence >= 0.8 ? "High confidence" : confidence >= 0.65 ? "Medium confidence" : "Low confidence - verify",
+    is_demo_mode: true,
   };
 }

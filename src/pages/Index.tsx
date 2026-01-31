@@ -14,6 +14,8 @@ interface ClassificationResult {
   confidence?: number;
   partialAccuracy?: string;
   sixDigitMatch?: string;
+  validationWarning?: string;
+  isDemoMode?: boolean;
 }
 
 export default function Index() {
@@ -25,18 +27,21 @@ export default function Index() {
     inputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleClassify = async (input: { text: string; extractedData?: ExtractedPharmaData }) => {
+  const handleClassify = async (input: {
+    text: string;
+    extractedData?: ExtractedPharmaData;
+  }) => {
     if (!input.text.trim() && !input.extractedData?.rawText) {
       toast.error("Please provide product details to classify");
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       const response: ClassificationResponse = await classifyProduct(
         input.text,
-        input.extractedData
+        input.extractedData,
       );
 
       setResult({
@@ -45,14 +50,25 @@ export default function Index() {
         confidence: response.confidence,
         partialAccuracy: response.partial_accuracy,
         sixDigitMatch: response.six_digit_match,
+        validationWarning: response.validation_warning,
+        isDemoMode: response.is_demo_mode,
       });
-      
-      toast.success("Classification complete!");
+
+      if (response.is_demo_mode) {
+        toast.warning(
+          "Demo mode: Backend unavailable, showing simulated result",
+        );
+      } else if (response.validation_warning) {
+        toast.warning(`Warning: ${response.validation_warning}`);
+      } else {
+        toast.success("Classification complete!");
+      }
     } catch (error) {
       console.error("Classification error:", error);
-      const message = error instanceof Error 
-        ? error.message 
-        : "Backend connection failed – check with LLM team";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Backend connection failed – check with LLM team";
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -67,7 +83,7 @@ export default function Index() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Hero onStartClick={scrollToInput} />
-      
+
       <main className="flex-1">
         {!result && (
           <ClassificationInput
