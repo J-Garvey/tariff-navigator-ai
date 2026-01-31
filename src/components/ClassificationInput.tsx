@@ -5,9 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { FileUploader } from "@/components/FileUploader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExtractionPreview } from "@/components/ExtractionPreview";
+import { parseAndExtractPDF, extractPharmaData, ExtractedPharmaData } from "@/lib/pdfParser";
+import { toast } from "sonner";
 
 interface ClassificationInputProps {
-  onClassify: (input: { specSheet?: File; msds?: File; text?: string }) => void;
+  onClassify: (input: { text: string; extractedData?: ExtractedPharmaData }) => void;
   isLoading: boolean;
 }
 
@@ -30,14 +33,63 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
     const [specSheet, setSpecSheet] = useState<File | null>(null);
     const [msds, setMsds] = useState<File | null>(null);
     const [text, setText] = useState("");
+    const [extractedData, setExtractedData] = useState<ExtractedPharmaData | null>(null);
+    const [isExtracting, setIsExtracting] = useState(false);
+
+    const handleFileSelect = async (file: File | null, type: 'spec' | 'msds') => {
+      if (type === 'spec') {
+        setSpecSheet(file);
+      } else {
+        setMsds(file);
+      }
+
+      if (file) {
+        setIsExtracting(true);
+        try {
+          const data = await parseAndExtractPDF(file);
+          setExtractedData(prev => {
+            if (prev) {
+              // Merge with existing data
+              return {
+                ...prev,
+                rawText: prev.rawText + '\n\n' + data.rawText,
+                casNumbers: [...new Set([...prev.casNumbers, ...data.casNumbers])],
+                activeIngredients: [...new Set([...prev.activeIngredients, ...data.activeIngredients])],
+                safetyWarnings: [...new Set([...prev.safetyWarnings, ...data.safetyWarnings])],
+                chemicalComposition: [...new Set([...prev.chemicalComposition, ...data.chemicalComposition])],
+                formulation: [...new Set([...prev.formulation, ...data.formulation])],
+                packaging: [...new Set([...prev.packaging, ...data.packaging])],
+                therapeuticUse: [...new Set([...prev.therapeuticUse, ...data.therapeuticUse])],
+                manufacturer: prev.manufacturer || data.manufacturer,
+                storage: prev.storage || data.storage,
+              };
+            }
+            return data;
+          });
+          toast.success(`Extracted data from ${file.name}`);
+        } catch (error) {
+          console.error('PDF extraction error:', error);
+          toast.error('Could not extract text from PDF. Try pasting the content manually.');
+        } finally {
+          setIsExtracting(false);
+        }
+      }
+    };
 
     const handleClassify = () => {
-      if (specSheet || msds || text.trim()) {
+      // Combine all text sources
+      let combinedText = text;
+      if (extractedData?.rawText) {
+        combinedText = extractedData.rawText + '\n\n' + text;
+      }
+
+      if (combinedText.trim()) {
         onClassify({ 
-          specSheet: specSheet || undefined, 
-          msds: msds || undefined, 
-          text: text || undefined 
+          text: combinedText,
+          extractedData: extractedData || undefined
         });
+      } else {
+        toast.error('Please upload a document or enter product details');
       }
     };
 
@@ -45,19 +97,27 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
       setSpecSheet(null);
       setMsds(null);
       setText(SAMPLE_DESCRIPTION);
+      setExtractedData(extractPharmaData(SAMPLE_DESCRIPTION));
     };
 
-    const canClassify = (specSheet || msds || text.trim()) && !isLoading;
+    const handleReset = () => {
+      setSpecSheet(null);
+      setMsds(null);
+      setText("");
+      setExtractedData(null);
+    };
+
+    const canClassify = (specSheet || msds || text.trim()) && !isLoading && !isExtracting;
 
     return (
       <section ref={ref} className="py-16 px-6">
-        <div className="max-w-2xl mx-auto">
-          <Card className="shadow-card hover:shadow-card-hover transition-shadow duration-300 border-border/50 overflow-hidden">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <Card className="shadow-card hover:shadow-card-hover transition-shadow duration-300 border-primary/20 overflow-hidden">
             <div className="gradient-card">
               <CardContent className="p-6 md:p-8 space-y-6">
                 {/* Header */}
                 <div className="text-center mb-2">
-                  <h2 className="text-2xl font-semibold text-foreground mb-2">
+                  <h2 className="text-2xl font-semibold text-secondary mb-2">
                     Classify Your Product
                   </h2>
                   <p className="text-muted-foreground">
@@ -79,19 +139,19 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
                   </TabsList>
                   
                   <TabsContent value="spec" className="space-y-2">
-                    <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <label className="text-sm font-medium text-secondary flex items-center gap-2">
                       <FileText className="w-4 h-4 text-primary" />
                       Product Specification PDF
                     </label>
                     <FileUploader 
-                      onFileSelect={setSpecSheet} 
+                      onFileSelect={(file) => handleFileSelect(file, 'spec')} 
                       selectedFile={specSheet}
                       description="Upload product spec sheet"
                     />
                   </TabsContent>
                   
                   <TabsContent value="msds" className="space-y-2">
-                    <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <label className="text-sm font-medium text-secondary flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-warning" />
                       Material Safety Data Sheet (MSDS)
                     </label>
@@ -99,24 +159,32 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
                       Include CAS numbers, hazard classifications, and safety warnings
                     </p>
                     <FileUploader 
-                      onFileSelect={setMsds} 
+                      onFileSelect={(file) => handleFileSelect(file, 'msds')} 
                       selectedFile={msds}
                       description="Upload MSDS document"
                     />
                   </TabsContent>
                 </Tabs>
 
+                {/* Extraction Loading */}
+                {isExtracting && (
+                  <div className="flex items-center justify-center gap-2 py-4 text-primary">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Extracting document data...</span>
+                  </div>
+                )}
+
                 {/* Uploaded Files Summary */}
-                {(specSheet || msds) && (
-                  <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-accent/30 border border-border/50">
+                {(specSheet || msds) && !isExtracting && (
+                  <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
                     <span className="text-xs text-muted-foreground">Uploaded:</span>
                     {specSheet && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
+                      <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
                         Spec Sheet ✓
                       </span>
                     )}
                     {msds && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-warning/10 text-warning">
+                      <span className="text-xs px-2 py-1 rounded-full bg-warning/10 text-warning font-medium">
                         MSDS ✓
                       </span>
                     )}
@@ -138,7 +206,7 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
                 {/* Text Input */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-foreground">
+                    <label className="text-sm font-medium text-secondary">
                       Product Details & Safety Info
                     </label>
                     <Button
@@ -155,7 +223,12 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
                   <Textarea
                     placeholder="Paste product specifications, CAS numbers, safety warnings, formulation details..."
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={(e) => {
+                      setText(e.target.value);
+                      if (e.target.value.trim()) {
+                        setExtractedData(extractPharmaData(e.target.value));
+                      }
+                    }}
                     className="min-h-[140px] resize-none bg-background/50 border-border focus:border-primary/50 transition-colors"
                     disabled={isLoading}
                   />
@@ -164,29 +237,49 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
                   </p>
                 </div>
 
-                {/* Classify Button */}
-                <Button
-                  variant="hero"
-                  size="xl"
-                  className="w-full"
-                  onClick={handleClassify}
-                  disabled={!canClassify}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-5 h-5" />
-                      Classify Now
-                    </>
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  {(specSheet || msds || text) && (
+                    <Button
+                      variant="outline"
+                      onClick={handleReset}
+                      disabled={isLoading}
+                      className="flex-shrink-0"
+                    >
+                      Clear All
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    variant="hero"
+                    size="xl"
+                    className="flex-1"
+                    onClick={handleClassify}
+                    disabled={!canClassify}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Classifying...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5" />
+                        Classify Now
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </div>
           </Card>
+
+          {/* Extraction Preview */}
+          {extractedData && !isExtracting && (
+            <ExtractionPreview 
+              data={extractedData} 
+              fileName={specSheet?.name || msds?.name || "Manual Input"} 
+            />
+          )}
         </div>
       </section>
     );
