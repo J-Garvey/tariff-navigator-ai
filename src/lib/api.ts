@@ -1,10 +1,7 @@
 import { ExtractedPharmaData } from "./pdfParser";
 
-// Placeholder API endpoint - replace with your actual backend URL
-const API_ENDPOINT = "https://llm-backend.example.com/classify";
-
-// Optional: Add API key from environment variable
-const API_KEY = import.meta.env.VITE_LLM_API_KEY || "";
+// Use Supabase Edge Function for classification (implements toby/buildPrompt.py logic)
+const API_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-product`;
 
 export interface ClassificationRequest {
   extracted_text: string;
@@ -48,12 +45,8 @@ export async function classifyProduct(
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
+    "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
   };
-
-  // Add authorization header if API key is provided
-  if (API_KEY) {
-    headers["Authorization"] = `Bearer ${API_KEY}`;
-  }
 
   try {
     const response = await fetch(API_ENDPOINT, {
