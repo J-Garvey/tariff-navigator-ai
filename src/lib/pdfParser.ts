@@ -1,7 +1,5 @@
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Disable worker - run PDF.js in main thread (simpler, works everywhere)
-pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+// Use legacy build that doesn't require web workers
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 export interface ExtractedPharmaData {
   rawText: string;
