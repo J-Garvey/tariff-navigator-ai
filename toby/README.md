@@ -1,4 +1,4 @@
-# Bio-Classify AI
+# Easy Ship AI
 
 Pharma HS/TARIC classification: upload a Product Spec Sheet (PDF→text) and get a 10-digit code + Legal Justification Memo.
 

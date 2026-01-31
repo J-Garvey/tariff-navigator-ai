@@ -8,7 +8,7 @@ export function Footer() {
           {/* Branding */}
           <div className="flex items-center gap-2 text-muted-foreground">
             <Shield className="w-5 h-5 text-primary" />
-            <span className="text-sm font-bold text-secondary">Bio-Classify AI</span>
+            <span className="text-sm font-bold text-secondary">Easy Ship AI</span>
             <span className="text-xs text-muted-foreground">• Pharma Tariff Co-Pilot</span>
           </div>
 

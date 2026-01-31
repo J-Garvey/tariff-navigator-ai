@@ -13,8 +13,8 @@ import os
 from buildPrompt import runPrompt, extract_pdf_text, BIO_CLASSIFY_SYSTEM_PROMPT
 
 app = FastAPI(
-    title="Bio-Classify AI Backend",
-    description="Pharmaceutical HS/TARIC classification using LLM",
+    title="Easy Ship AI Backend",
+    description="AI-powered pharmaceutical HS/TARIC classification",
     version="1.0.0"
 )
 

@@ -1,5 +1,5 @@
 """
-Assembles the prompt for Bio-Classify AI: PDF spec text + product data + EU TARIC rules (from PDF) + system prompt.
+Assembles the prompt for Easy Ship AI: PDF spec text + product data + EU TARIC rules (from PDF) + system prompt.
 Calls the LLM to get HS/TARIC code + Explanation + Sources + Legal Justification Memo.
 Returns structured JSON output with confidence scores.
 """

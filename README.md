@@ -1,33 +1,38 @@
-# Welcome to your Lovable project
+# Easy Ship AI
 
-## Project info
+AI-powered pharmaceutical HS/TARIC code classification with audit-ready legal memos.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- 📄 **PDF Upload**: Extract product data from specification sheets
+- 🤖 **AI Classification**: Get accurate HS/TARIC codes using LLM analysis
+- 📋 **Legal Memos**: Audit-ready justification citing GIRs and EU TARIC rules
+- ✅ **Confidence Scores**: Know how reliable each classification is
+- 🔄 **Dual Backend**: Supabase Edge Functions or Python FastAPI
 
-There are several ways of editing your application.
+## Quick Start
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Frontend (React + Vite)
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Install dependencies
+npm install
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Start dev server
+npm run dev
+```
+
+### Python Backend (Optional)
+
+```sh
+cd toby
+pip install -r requirements.txt
+python server.py
+```
+
+Set `VITE_USE_PYTHON_BACKEND=true` in `.env` to use Python backend.
+
+## Project Structure
 
 # Step 3: Install the necessary dependencies.
 npm i
