@@ -71,3 +71,32 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Setting up the LLM Backend
+
+This project uses Supabase Edge Functions to process classification requests with AI.
+
+### Option 1: Using Supabase (Production)
+
+1. Set up the `LOVABLE_API_KEY` secret in your Supabase project:
+
+   ```bash
+   npx supabase secrets set LOVABLE_API_KEY=your_lovable_api_key_here
+   ```
+
+2. Deploy the edge function:
+   ```bash
+   npx supabase functions deploy classify-product
+   ```
+
+### Option 2: Local Development with Mock Data
+
+The app automatically falls back to mock data when the backend is not available. This allows you to test the UI without setting up the full backend.
+
+### Option 3: Direct Python Integration (Alternative)
+
+You can also use the Python scripts in the `/toby` folder:
+
+1. Copy `toby/.env.example` to `toby/.env`
+2. Add your Google Gemini API key: `API_KEY=your_gemini_api_key`
+3. Run: `python toby/buildPrompt.py`

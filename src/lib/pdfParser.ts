@@ -1,7 +1,10 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Import worker as a URL - Vite will handle bundling it
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+// Configure worker to use the local bundled worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export interface ExtractedPharmaData {
   rawText: string;
@@ -25,21 +28,64 @@ const PACKAGING_KEYWORDS = ['vial', 'syringe', 'ampoule', 'bottle', 'container',
 const THERAPEUTIC_KEYWORDS = ['indication', 'treatment', 'therapy', 'disease', 'condition', 'cancer', 'immunotherapy', 'oncology'];
 
 export async function extractTextFromPDF(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  
-  let fullText = '';
-  
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((item: any) => item.str)
-      .join(' ');
-    fullText += pageText + '\n';
+  try {
+    console.log('Starting PDF extraction for:', file.name, 'Size:', file.size);
+    
+    const arrayBuffer = await file.arrayBuffer();
+    console.log('ArrayBuffer loaded, size:', arrayBuffer.byteLength);
+    
+    const loadingTask = pdfjsLib.getDocument({ 
+      data: arrayBuffer,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+      verbosity: 0, // Reduce console spam
+    });
+    
+    const pdf = await loadingTask.promise;
+    console.log('PDF loaded successfully. Pages:', pdf.numPages);
+    
+    let fullText = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      console.log(`Extracting page ${i}/${pdf.numPages}...`);
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => {
+          // Handle both string and object items
+          if (typeof item === 'string') return item;
+          return item.str || '';
+        })
+        .join(' ');
+      fullText += pageText + '\n';
+      console.log(`Page ${i} extracted, length: ${pageText.length}`);
+    }
+    
+    console.log('Total text extracted:', fullText.length, 'characters');
+    
+    // Check if we actually extracted any meaningful text
+    if (!fullText.trim()) {
+      throw new Error('PDF appears to be empty or contains only images. Please use OCR or paste text manually.');
+    }
+    
+    return fullText;
+  } catch (error) {
+    console.error('PDF extraction error details:', error);
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('Worker')) {
+        throw new Error('PDF worker failed to load. Check your internet connection and try again.');
+      }
+      if (error.message.includes('Invalid PDF')) {
+        throw new Error('Invalid or corrupted PDF file. Please try a different file.');
+      }
+      throw error;
+    }
+    
+    throw new Error('Failed to extract text from PDF. The file may be corrupted or contain only images.');
   }
-  
-  return fullText;
 }
 
 export function extractPharmaData(text: string): ExtractedPharmaData {
