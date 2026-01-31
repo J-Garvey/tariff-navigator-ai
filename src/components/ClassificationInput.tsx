@@ -87,7 +87,7 @@ export const ClassificationInput = forwardRef<HTMLDivElement, ClassificationInpu
           extractedData: extractedData || undefined
         });
       } else {
-        toast.error('Please upload a document or enter product details');
+        toast.error('Upload a PDF or enter product details');
       }
     };
 
