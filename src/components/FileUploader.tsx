@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils";
 interface FileUploaderProps {
   onFileSelect: (file: File | null) => void;
   selectedFile: File | null;
+  description?: string;
 }
 
-export function FileUploader({ onFileSelect, selectedFile }: FileUploaderProps) {
+export function FileUploader({ onFileSelect, selectedFile, description }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,7 +133,7 @@ export function FileUploader({ onFileSelect, selectedFile }: FileUploaderProps) 
         </div>
         
         <p className="text-base font-medium text-foreground mb-1">
-          {isDragging ? "Drop your PDF here" : "Drop PDF here or click to upload"}
+          {isDragging ? "Drop your PDF here" : (description || "Drop PDF here or click to upload")}
         </p>
         <p className="text-sm text-muted-foreground">
           PDF files only, max 10MB

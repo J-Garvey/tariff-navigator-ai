@@ -61,7 +61,7 @@ export default function Index() {
     inputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleClassify = async (input: { file?: File; text?: string }) => {
+  const handleClassify = async (input: { specSheet?: File; msds?: File; text?: string }) => {
     setIsLoading(true);
     
     try {
