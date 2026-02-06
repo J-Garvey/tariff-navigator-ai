@@ -16,6 +16,9 @@ interface ClassificationResult {
   sixDigitMatch?: string;
   validationWarning?: string;
   isDemoMode?: boolean;
+  sources?: Array<{ code: string; description: string; url: string }>;
+  sessionId?: string;
+  databaseValidated?: boolean;
 }
 
 export default function Index() {
@@ -52,6 +55,9 @@ export default function Index() {
         sixDigitMatch: response.six_digit_match,
         validationWarning: response.validation_warning,
         isDemoMode: response.is_demo_mode,
+        sources: response.sources,
+        sessionId: response.session_id,
+        databaseValidated: response.database_validated,
       });
 
       if (response.is_demo_mode) {

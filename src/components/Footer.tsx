@@ -8,16 +8,21 @@ export function Footer() {
           {/* Branding */}
           <div className="flex items-center gap-2 text-muted-foreground">
             <Shield className="w-5 h-5 text-primary" />
-            <span className="text-sm font-bold text-secondary">Easy Ship AI</span>
-            <span className="text-xs text-muted-foreground">• Pharma Tariff Co-Pilot</span>
+            <span className="text-sm font-bold text-secondary">
+              Easy Ship AI
+            </span>
+            <span className="text-xs text-muted-foreground">
+              • Pharma Tariff Co-Pilot
+            </span>
           </div>
 
           {/* Disclaimer */}
           <div className="flex items-start gap-2 max-w-md">
             <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground">
-              <strong className="text-warning">Disclaimer:</strong> Results from external LLM backend. 
-              Always verify with Revenue/Customs expert. Not official legal or tax advice.
+              <strong className="text-warning">Disclaimer:</strong> Results from
+              external LLM backend. Always verify with Revenue/Customs expert.
+              Not official legal or tax advice.
             </p>
           </div>
 

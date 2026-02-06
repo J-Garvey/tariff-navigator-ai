@@ -1,13 +1,19 @@
 import { ExtractedPharmaData } from "./pdfParser";
 
 // Backend options:
-// 1. Supabase Edge Function (default): VITE_SUPABASE_URL/functions/v1/classify-product
-// 2. Python FastAPI (toby/): http://localhost:8000/classify
+// 1. Supabase Edge Function V2 (with database): VITE_SUPABASE_URL/functions/v1/classify-product-v2
+// 2. Supabase Edge Function V1 (legacy): VITE_SUPABASE_URL/functions/v1/classify-product
+// 3. Python FastAPI (toby/): http://localhost:8000/classify
 // Set VITE_USE_PYTHON_BACKEND=true to use Python backend
+// Set VITE_USE_LEGACY_API=true to use V1 (no database)
 
 const USE_PYTHON_BACKEND = import.meta.env.VITE_USE_PYTHON_BACKEND === "true";
+const USE_LEGACY_API = import.meta.env.VITE_USE_LEGACY_API === "true";
 const PYTHON_API_ENDPOINT = import.meta.env.VITE_PYTHON_API_URL || "http://localhost:8000";
-const SUPABASE_API_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-product`;
+
+// Use V2 (database-backed) by default, fall back to V1 if VITE_USE_LEGACY_API is set
+const SUPABASE_FUNCTION_NAME = USE_LEGACY_API ? "classify-product" : "classify-product-v2";
+const SUPABASE_API_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${SUPABASE_FUNCTION_NAME}`;
 
 const API_ENDPOINT = USE_PYTHON_BACKEND 
   ? `${PYTHON_API_ENDPOINT}/classify` 
@@ -35,6 +41,9 @@ export interface ClassificationResponse {
   six_digit_match?: string;
   validation_warning?: string;
   is_demo_mode?: boolean;
+  sources?: Array<{code: string; description: string; url: string}>;
+  session_id?: string;
+  database_validated?: boolean;
 }
 
 export async function classifyProduct(
@@ -243,4 +252,41 @@ This product is classified under HS 3002.15.00.00 based on:
     six_digit_match: confidence >= 0.8 ? "High confidence" : confidence >= 0.65 ? "Medium confidence" : "Low confidence - verify",
     is_demo_mode: true,
   };
+}
+
+// Follow-up question interface
+export interface FollowUpResponse {
+  response: string;
+  conversation_history: Array<{role: string; content: string}>;
+  session_id: string;
+}
+
+// Ask a follow-up question about a classification
+export async function askFollowUp(
+  sessionId: string,
+  question: string,
+  conversationHistory: Array<{role: string; content: string}>
+): Promise<FollowUpResponse> {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(USE_PYTHON_BACKEND ? {} : {
+      "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    }),
+  };
+
+  const response = await fetch(API_ENDPOINT, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      session_id: sessionId,
+      follow_up_question: question,
+      conversation_history: conversationHistory,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Follow-up failed (${response.status})`);
+  }
+
+  return response.json();
 }
